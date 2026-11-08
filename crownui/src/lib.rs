@@ -59,7 +59,7 @@ pub mod ext {
         WaylandPlatform,
     };
     pub use windowing::{
-        AppIconPlacement, AppWindows, ApplicationHandler, ClipboardReadId, DropAcceptance,
-        LockSurfaceOptions, Platform, PlatformSurface, WindowEvent, WindowId,
+        AppIconPlacement, AppWindows, ApplicationHandler, ClipboardReadId, ControlFlow,
+        DropAcceptance, LockSurfaceOptions, Platform, PlatformSurface, WindowEvent, WindowId,
     };
 }
