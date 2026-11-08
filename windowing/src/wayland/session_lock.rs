@@ -66,8 +66,10 @@ impl WaylandPlatform {
         Ok(())
     }
 
-    /// Unlocks a confirmed lock and flushes the request, so it reaches the compositor even if
-    /// the process exits right after. Returns `false` (and changes nothing) unless the lock is
+    /// Unlocks a confirmed lock and waits until the compositor has processed the request, so
+    /// it takes effect even if the process exits right after (a compositor that sees the hang-up
+    /// before reading the socket would otherwise drop it and stay locked, as swaylock and
+    /// hyprlock also guard against). Returns `false` (and changes nothing) unless the lock is
     /// confirmed; a pending lock cannot be unlocked by the protocol.
     pub fn unlock_session(&mut self) -> bool {
         let Some(lock) = self.session_lock.as_ref().filter(|lock| lock.is_locked()) else {
@@ -75,7 +77,9 @@ impl WaylandPlatform {
         };
         lock.unlock();
         self.session_lock = None;
-        let _ = self.connection.flush();
+        if self.connection.roundtrip().is_err() {
+            let _ = self.connection.flush();
+        }
         true
     }
 
