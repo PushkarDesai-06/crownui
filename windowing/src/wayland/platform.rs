@@ -1,8 +1,8 @@
 use crate::{
     AppIconPlacement, Capabilities, ControlFlow, Platform, WindowAttributes, WindowId,
     wayland::{
-        CrownEvent, Error, OutputEvent, RenderSurface, Window, event_loop::WaylandPlatform,
-        protocols::background_effects::MaterialCapabilities,
+        CrownEvent, Error, OutputEvent, RenderSurface, SessionLockEvent, Window,
+        event_loop::WaylandPlatform, protocols::background_effects::MaterialCapabilities,
     },
 };
 
@@ -13,6 +13,8 @@ pub enum WaylandEvent {
     Output(OutputEvent),
     /// A CrownOS protocol reported something.
     Crown(CrownEvent),
+    /// The session lock was confirmed or ended.
+    SessionLock(SessionLockEvent),
 }
 
 impl Platform for WaylandPlatform {
@@ -22,7 +24,7 @@ impl Platform for WaylandPlatform {
     type Error = Error;
 
     fn create_window(&mut self, attributes: WindowAttributes) -> Result<WindowId, Error> {
-        Ok(WaylandPlatform::create_window(self, attributes))
+        WaylandPlatform::create_window(self, attributes)
     }
 
     fn window(&self, id: WindowId) -> Option<&Window> {
@@ -55,6 +57,7 @@ impl Platform for WaylandPlatform {
             visibility_hints: self.crown.visibility.is_some(),
             surface_animation: self.crown.surface_animation.is_some(),
             layer_shell: self.standard.layer_shell.is_some(),
+            session_lock: self.standard.session_lock.is_some(),
             idle_inhibit: self.standard.idle_inhibit.is_some(),
             app_icons: self.crown.app_icons.is_some(),
         }

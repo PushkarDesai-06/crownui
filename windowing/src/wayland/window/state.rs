@@ -59,6 +59,16 @@ impl Window {
         self.resize_to(size, events);
     }
 
+    /// A lock surface always takes the size the compositor gives it: its output's logical size.
+    pub(crate) fn configure_lock(
+        &mut self,
+        (width, height): (u32, u32),
+        events: &mut Vec<QueuedEvent>,
+    ) {
+        let size = LogicalSize::new(width.max(1), height.max(1));
+        self.resize_to(size, events);
+    }
+
     fn resize_to(&mut self, size: LogicalSize, events: &mut Vec<QueuedEvent>) {
         let resized = !self.configured || self.logical_size != size;
         self.logical_size = size;

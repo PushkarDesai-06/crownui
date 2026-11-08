@@ -25,8 +25,8 @@ use sctk::{
 };
 
 use crate::{
-    CursorIcon, Decorations, LayerExtent, LayerOptions, Material, ResizeEdge, TextInputState,
-    WindowAttributes, WindowControl, WindowId,
+    CursorIcon, Decorations, LayerExtent, LayerOptions, LockSurfaceOptions, Material, ResizeEdge,
+    TextInputState, WindowAttributes, WindowControl, WindowId,
     dpi::{LogicalSize, PhysicalSize, ScaleFactor},
     wayland::{
         color_management::SurfaceColorTag,
@@ -69,6 +69,7 @@ fn xdg_decorations(decorations: Decorations) -> WindowDecorations {
 pub struct Window {
     shell: ShellSurface,
     layer: Option<LayerOptions>,
+    lock_surface: Option<LockSurfaceOptions>,
     /// The primary output's logical size when last seen, which `LayerExtent::Output` resolves to.
     output_size: Option<(u32, u32)>,
     idle_inhibitor: Option<ZwpIdleInhibitorV1>,
@@ -98,7 +99,18 @@ pub struct Window {
 }
 
 impl WaylandPlatform {
-    pub fn create_window(&mut self, attributes: WindowAttributes) -> WindowId {
+    pub fn create_window(&mut self, attributes: WindowAttributes) -> Result<WindowId, Error> {
+        let lock_target = match attributes.lock_surface {
+            Some(options) => {
+                let lock = self.active_session_lock().ok_or(Error::NotLocking)?.clone();
+                let output = self
+                    .outputs()
+                    .find(|output| output.id.raw() == options.output)
+                    .ok_or(Error::UnknownOutput(options.output))?;
+                Some((lock, output))
+            }
+            None => None,
+        };
         let qh = &self.queue_handle;
         let surface = self.compositor_state.create_surface(qh);
         let id = surface_window_id(&surface);
@@ -116,9 +128,15 @@ impl WaylandPlatform {
         let output_size = shell::primary_output_size(self.outputs());
         let layer = attributes
             .layer
-            .filter(|_| self.standard.layer_shell.is_some());
-        let shell = match (&layer, &self.standard.layer_shell) {
-            (Some(options), Some(layer_shell)) => {
+            .filter(|_| self.standard.layer_shell.is_some() && lock_target.is_none());
+        let shell = match (&layer, &self.standard.layer_shell, lock_target) {
+            (_, _, Some((lock, output))) => {
+                if let Some((width, height)) = output.logical_size {
+                    logical_size = LogicalSize::new(width.max(1) as u32, height.max(1) as u32);
+                }
+                ShellSurface::Lock(lock.create_lock_surface(surface, &output.proxy, qh))
+            }
+            (Some(options), Some(layer_shell), None) => {
                 let fallback = (attributes.inner_size.width, attributes.inner_size.height);
                 let requested = options.requested_size(output_size, fallback);
                 logical_size = LogicalSize::new(
@@ -159,13 +177,17 @@ impl WaylandPlatform {
                 ShellSurface::Toplevel(toplevel)
             }
         };
-        shell.commit();
+        if !matches!(shell, ShellSurface::Lock(_)) {
+            shell.commit();
+        }
+        let lock_surface = attributes.lock_surface;
 
         self.windows.insert(
             id,
             Window {
                 shell,
                 layer,
+                lock_surface,
                 output_size,
                 idle_inhibitor: None,
                 idle_inhibit_manager: self.standard.idle_inhibit.clone(),
@@ -180,7 +202,7 @@ impl WaylandPlatform {
                 connection: self.connection.clone(),
                 queue_handle: qh.clone(),
                 floating_size: logical_size,
-                floating: !attributes.maximized,
+                floating: !attributes.maximized && lock_surface.is_none(),
                 maximized: attributes.maximized,
                 logical_size,
                 scale_factor: ScaleFactor::IDENTITY,
@@ -200,7 +222,7 @@ impl WaylandPlatform {
             self.visibility_observers.insert(id, observer);
         }
         self.replay_app_windows(id);
-        id
+        Ok(id)
     }
 
     pub fn window(&self, id: WindowId) -> Option<&Window> {
@@ -279,6 +301,11 @@ impl Window {
     /// The layer-surface options, when this window is a layer surface rather than a toplevel.
     pub fn layer(&self) -> Option<&LayerOptions> {
         self.layer.as_ref()
+    }
+
+    /// The lock-surface options, when this window covers an output while the session is locked.
+    pub fn lock_surface(&self) -> Option<&LockSurfaceOptions> {
+        self.lock_surface.as_ref()
     }
 
     pub fn set_title(&self, title: impl Into<String>) {
@@ -487,7 +514,7 @@ impl WindowControl for Window {
     }
 
     fn is_floating(&self) -> bool {
-        self.layer.is_none() && self.floating
+        self.layer.is_none() && self.lock_surface.is_none() && self.floating
     }
 
     fn set_text_input(&mut self, state: Option<TextInputState>) {

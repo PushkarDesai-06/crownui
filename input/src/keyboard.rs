@@ -1,4 +1,4 @@
-use crate::{Key, Modifiers, PhysicalKey};
+use crate::{Key, LockKeys, Modifiers, PhysicalKey};
 
 /// A key press or release, like the DOM's `KeyboardEvent`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,4 +14,7 @@ pub struct KeyboardEvent {
     pub repeat: bool,
     /// Modifiers held at the time.
     pub modifiers: Modifiers,
+    /// Lock keys on at the time. A press of Caps Lock itself still reports the state before the
+    /// press; the change shows on the next event.
+    pub locks: LockKeys,
 }

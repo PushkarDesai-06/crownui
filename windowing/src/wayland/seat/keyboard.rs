@@ -21,6 +21,7 @@ impl WaylandPlatform {
             text: event.utf8,
             repeat,
             modifiers: self.modifiers,
+            locks: self.lock_keys,
         }
     }
 
@@ -113,6 +114,10 @@ impl KeyboardHandler for WaylandPlatform {
         _: u32,
     ) {
         self.modifiers = modifiers_from_sctk(modifiers);
+        self.lock_keys = input::LockKeys {
+            caps_lock: modifiers.caps_lock,
+            num_lock: modifiers.num_lock,
+        };
         let modifiers = self.modifiers;
         self.queue_key_event(WindowEvent::ModifiersChanged(modifiers));
     }

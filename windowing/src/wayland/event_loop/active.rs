@@ -14,6 +14,7 @@ use sctk::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::SeatState,
+    session_lock::SessionLock,
     shell::xdg::XdgShell,
     shm::{Shm, ShmHandler},
 };
@@ -61,6 +62,7 @@ pub struct WaylandPlatform {
     pub(crate) seats: Vec<SeatDevices>,
     pub(crate) keyboard_focus: Option<WindowId>,
     pub(crate) modifiers: Modifiers,
+    pub(crate) lock_keys: input::LockKeys,
     pub(crate) touch_points: Vec<TouchPoint>,
     pub(crate) pending_events: Vec<QueuedEvent>,
     pub(crate) screencast_batches: HashMap<ObjectId, PendingScreencast>,
@@ -68,6 +70,7 @@ pub struct WaylandPlatform {
     pub(crate) proxy_waker: Ping,
     pub(crate) control_flow: ControlFlow,
     pub(crate) exit_requested: bool,
+    pub(crate) session_lock: Option<SessionLock>,
 }
 
 impl WaylandPlatform {
@@ -103,6 +106,7 @@ impl WaylandPlatform {
             seats: Vec::new(),
             keyboard_focus: None,
             modifiers: Modifiers::NONE,
+            lock_keys: input::LockKeys::default(),
             touch_points: Vec::new(),
             pending_events: Vec::new(),
             screencast_batches: HashMap::new(),
@@ -110,6 +114,7 @@ impl WaylandPlatform {
             proxy_waker,
             control_flow: ControlFlow::default(),
             exit_requested: false,
+            session_lock: None,
             connection,
             queue_handle,
             loop_handle,

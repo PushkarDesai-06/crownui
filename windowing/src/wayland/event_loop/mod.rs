@@ -14,13 +14,17 @@ pub use proxy::EventLoopProxy;
 
 use crate::{
     ApplicationHandler, ControlFlow, WindowEvent, WindowId,
-    wayland::{WaylandEvent, error::Error, output::OutputEvent, protocols::CrownEvent},
+    wayland::{
+        WaylandEvent, error::Error, output::OutputEvent, protocols::CrownEvent,
+        session_lock::SessionLockEvent,
+    },
 };
 
 pub(crate) enum QueuedEvent {
     Window(WindowId, WindowEvent),
     Output(OutputEvent),
     Crown(CrownEvent),
+    SessionLock(SessionLockEvent),
     WakeUp,
 }
 
@@ -146,6 +150,9 @@ impl EventLoop {
                             _ => {}
                         }
                         app.platform_event(state, WaylandEvent::Crown(event));
+                    }
+                    QueuedEvent::SessionLock(event) => {
+                        app.platform_event(state, WaylandEvent::SessionLock(event))
                     }
                     QueuedEvent::WakeUp => app.proxy_wake_up(state),
                 }

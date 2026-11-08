@@ -127,6 +127,7 @@ mod tests {
                 ctrl_key: true,
                 ..Modifiers::NONE
             },
+            locks: crate::LockKeys::default(),
         };
         assert!(save.matches(&event));
         event.modifiers.shift_key = true;

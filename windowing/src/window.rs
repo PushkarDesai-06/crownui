@@ -1,4 +1,6 @@
-use crate::{dpi::LogicalSize, layer::LayerOptions, material::Material};
+use crate::{
+    dpi::LogicalSize, layer::LayerOptions, material::Material, session_lock::LockSurfaceOptions,
+};
 
 /// Identifies a window within one platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -71,6 +73,9 @@ pub struct WindowAttributes {
     /// Makes the window a desktop-shell layer surface (panel, dock, overlay) instead of an
     /// application window; title, decorations and size limits then do not apply.
     pub layer: Option<LayerOptions>,
+    /// Makes the window a session-lock surface on one output; it takes precedence over
+    /// `layer`. Creating it fails unless the platform holds a session lock.
+    pub lock_surface: Option<LockSurfaceOptions>,
 }
 
 impl Default for WindowAttributes {
@@ -85,6 +90,7 @@ impl Default for WindowAttributes {
             maximized: false,
             material: None,
             layer: None,
+            lock_surface: None,
         }
     }
 }
@@ -141,6 +147,12 @@ impl WindowAttributes {
     /// Makes the window a layer surface; ignored where the platform has no layer shell.
     pub fn with_layer(mut self, layer: LayerOptions) -> Self {
         self.layer = Some(layer);
+        self
+    }
+
+    /// Makes the window a session-lock surface on one output.
+    pub fn with_lock_surface(mut self, lock_surface: LockSurfaceOptions) -> Self {
+        self.lock_surface = Some(lock_surface);
         self
     }
 }

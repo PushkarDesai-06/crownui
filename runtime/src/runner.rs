@@ -30,6 +30,7 @@ pub struct Runner<G: GraphicsBackend, L: LayoutEngine> {
     windows: Vec<WindowRunner<G, L>>,
     epoch: Instant,
     failure: Option<RunError>,
+    exit_with_last_window: bool,
 }
 
 impl<G: GraphicsBackend, L: LayoutEngine> Runner<G, L> {
@@ -39,7 +40,56 @@ impl<G: GraphicsBackend, L: LayoutEngine> Runner<G, L> {
             windows: vec![WindowRunner::new(root, engine, config)?],
             epoch: Instant::now(),
             failure: None,
+            exit_with_last_window: true,
         })
+    }
+
+    /// A runner with no windows, for apps that open them later with [`Runner::open_window`]
+    /// from their own [`ApplicationHandler`] wrapped around this one. It keeps running when it
+    /// has no windows; the app decides when to exit.
+    pub fn empty() -> Self {
+        Self {
+            windows: Vec::new(),
+            epoch: Instant::now(),
+            failure: None,
+            exit_with_last_window: false,
+        }
+    }
+
+    /// Opens a window showing `root` while the app runs, e.g. one per output as outputs appear.
+    pub fn open_window<P>(
+        &mut self,
+        platform: &mut P,
+        root: impl View,
+        engine: L,
+        config: AppConfig,
+    ) -> Result<WindowId, RunError>
+    where
+        P: Platform,
+        G: CreateRenderer<P::Surface>,
+    {
+        let mut window = WindowRunner::new(root, engine, config)?;
+        window.open(platform, self.epoch)?;
+        let id = window
+            .window()
+            .ok_or_else(|| RunError::Platform("CUI0406: the window has no surface".into()))?;
+        self.windows.push(window);
+        Ok(id)
+    }
+
+    /// Closes a window opened by this runner: its UI and render thread stop, then the
+    /// platform window goes. Does nothing for unknown ids.
+    pub fn close_window<P: Platform>(&mut self, platform: &mut P, id: WindowId) {
+        let Some(index) = self.position(id) else {
+            return;
+        };
+        drop(self.windows.remove(index));
+        platform.close_window(id);
+    }
+
+    /// The windows this runner currently drives.
+    pub fn window_ids(&self) -> impl Iterator<Item = WindowId> + '_ {
+        self.windows.iter().filter_map(WindowRunner::window)
     }
 
     /// Adds another window showing `root`, opened with `config` alongside the first.
@@ -75,7 +125,7 @@ impl<G: GraphicsBackend, L: LayoutEngine> Runner<G, L> {
         let open = self.windows.len();
         self.windows
             .retain_mut(|window| !window.take_close_request());
-        if self.windows.len() < open && self.windows.is_empty() {
+        if self.exit_with_last_window && self.windows.len() < open && self.windows.is_empty() {
             platform.exit();
         }
     }

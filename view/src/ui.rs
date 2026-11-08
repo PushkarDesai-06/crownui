@@ -729,6 +729,7 @@ impl Ui {
             },
             repeat: false,
             modifiers: keybind.modifiers,
+            locks: input::LockKeys::default(),
         };
         self.key_down(&event, true);
         self.key_up(&event, true);

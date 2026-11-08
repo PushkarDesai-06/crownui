@@ -25,6 +25,10 @@ pub enum Error {
     Waker(#[from] std::io::Error),
     #[error("the compositor has no seat")]
     NoSeat,
+    #[error("a lock surface needs a session lock; call lock_session first")]
+    NotLocking,
+    #[error("no output with id {0} to put a lock surface on")]
+    UnknownOutput(u32),
     #[error("virtual output name {0:?} must be 1 to 32 characters from [A-Za-z0-9_-]")]
     InvalidVirtualOutputName(String),
     #[error("virtual output mode is out of range")]

@@ -9,6 +9,11 @@ use crate::wayland::event_loop::{QueuedEvent, WaylandPlatform};
 pub struct OutputId(u32);
 
 impl OutputId {
+    /// The id as a plain number, e.g. for [`LockSurfaceOptions`](crate::LockSurfaceOptions).
+    pub const fn raw(self) -> u32 {
+        self.0
+    }
+
     pub(crate) fn of(output: &WlOutput) -> Option<Self> {
         output
             .data::<OutputData>()

@@ -1,5 +1,6 @@
 use sctk::{
     reexports::client::{QueueHandle, protocol::wl_surface::WlSurface},
+    session_lock::SessionLockSurface,
     shell::{
         WaylandSurface,
         wlr_layer::{self, LayerShell, LayerSurface},
@@ -17,6 +18,7 @@ use crate::{
 pub(crate) enum ShellSurface {
     Toplevel(XdgWindow),
     Layer(LayerSurface),
+    Lock(SessionLockSurface),
 }
 
 impl ShellSurface {
@@ -24,13 +26,14 @@ impl ShellSurface {
         match self {
             Self::Toplevel(toplevel) => toplevel.wl_surface(),
             Self::Layer(layer) => layer.wl_surface(),
+            Self::Lock(lock) => lock.wl_surface(),
         }
     }
 
     pub(crate) fn toplevel(&self) -> Option<&XdgWindow> {
         match self {
             Self::Toplevel(toplevel) => Some(toplevel),
-            Self::Layer(_) => None,
+            Self::Layer(_) | Self::Lock(_) => None,
         }
     }
 

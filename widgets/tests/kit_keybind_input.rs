@@ -28,6 +28,7 @@ fn event((key, code): Strike, repeat: bool) -> KeyboardEvent {
         text: None,
         repeat,
         modifiers: Modifiers::NONE,
+        locks: input::LockKeys::default(),
     }
 }
 

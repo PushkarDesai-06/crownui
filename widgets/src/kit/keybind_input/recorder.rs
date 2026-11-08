@@ -122,6 +122,7 @@ mod tests {
             text: None,
             repeat: false,
             modifiers: Modifiers::NONE,
+            locks: input::LockKeys::default(),
         }
     }
 

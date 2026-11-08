@@ -1,6 +1,8 @@
 use geometry::{Color, CornerShape};
 use view::ColorScheme;
-use windowing::{Decorations, LayerOptions, Material, WindowAttributes, dpi::LogicalSize};
+use windowing::{
+    Decorations, LayerOptions, LockSurfaceOptions, Material, WindowAttributes, dpi::LogicalSize,
+};
 
 /// How an app's window starts.
 #[derive(Debug, Clone)]
@@ -27,6 +29,9 @@ pub struct AppConfig {
     pub accessibility: bool,
     /// Run as a desktop-shell layer surface (panel, dock, overlay) instead of a window.
     pub layer: Option<LayerOptions>,
+    /// Run as a session-lock surface covering one output; see
+    /// [`Runner::open_window`](crate::Runner::open_window).
+    pub lock_surface: Option<LockSurfaceOptions>,
     /// The curve every rounded corner in the window follows.
     pub corner_shape: CornerShape,
     /// Who draws the window frame; client-side by default, with the kit's `window_controls`
@@ -48,6 +53,7 @@ impl Default for AppConfig {
             mcp: false,
             accessibility: true,
             layer: None,
+            lock_surface: None,
             corner_shape: CornerShape::Round,
             decorations: Decorations::default(),
         }
@@ -124,6 +130,13 @@ impl AppConfig {
         self
     }
 
+    /// Runs as a session-lock surface on the output whose raw id is `output`; the platform must
+    /// hold a session lock when the window opens.
+    pub fn lock_surface(mut self, output: u32) -> Self {
+        self.lock_surface = Some(LockSurfaceOptions::on_output(output));
+        self
+    }
+
     /// Draws every rounded corner in the window, kit widgets' included, as `shape`.
     pub fn corner_shape(mut self, shape: CornerShape) -> Self {
         self.corner_shape = shape;
@@ -152,6 +165,9 @@ impl AppConfig {
         }
         if let Some(layer) = &self.layer {
             attributes = attributes.with_layer(layer.clone());
+        }
+        if let Some(lock_surface) = self.lock_surface {
+            attributes = attributes.with_lock_surface(lock_surface);
         }
         attributes
     }

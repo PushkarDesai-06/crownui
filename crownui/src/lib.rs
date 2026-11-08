@@ -4,7 +4,7 @@
 mod run;
 
 #[cfg(all(feature = "wayland", feature = "impeller"))]
-pub use run::{run, run_windows};
+pub use run::{WaylandRunner, run, run_app, run_windows};
 pub use runtime::{AppConfig, RunError};
 pub use widgets::kit;
 
@@ -47,13 +47,19 @@ pub mod ext {
     pub use input::{Key, Keybind, KeyboardEvent, Modifiers, NamedKey, PointerEvent, WheelEvent};
     pub use layouting::LayoutEngine;
     pub use runtime::{InlineApp, Runner};
+    pub use taffy_layout::TaffyEngine;
     pub use view::{
         AppIconRequest, AppTool, ClickEvent, DragEvent, DragLeaveEvent, DragOverEvent, DropEvent,
         FocusEvent, InputEvent, ItemLayout, Kind, LazyIndexKind, Listener, ListenerKind, Modifier,
         NodeId, Prop, StyleProp, ToolInfo, Ui, Variant, VariantStyle, lazy_index,
     };
+    #[cfg(feature = "wayland")]
+    pub use windowing::wayland::{
+        Output, OutputEvent, OutputId, SessionLockEvent, SessionLockStatus, WaylandEvent,
+        WaylandPlatform,
+    };
     pub use windowing::{
         AppIconPlacement, AppWindows, ApplicationHandler, ClipboardReadId, DropAcceptance,
-        Platform, PlatformSurface,
+        LockSurfaceOptions, Platform, PlatformSurface, WindowEvent, WindowId,
     };
 }

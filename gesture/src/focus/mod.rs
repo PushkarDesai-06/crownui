@@ -177,6 +177,7 @@ mod tests {
                 shift_key,
                 ..Modifiers::NONE
             },
+            locks: input::LockKeys::default(),
         }
     }
 

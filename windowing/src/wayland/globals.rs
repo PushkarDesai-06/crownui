@@ -9,11 +9,13 @@ use sctk::{
             text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3,
         },
     },
+    session_lock::SessionLockState,
     shell::wlr_layer::LayerShell,
 };
 
 use crate::wayland::{
-    color_management::ColorManagement, event_loop::WaylandPlatform, util::no_events::NoEvents,
+    color_management::ColorManagement, event_loop::WaylandPlatform, session_lock,
+    util::no_events::NoEvents,
 };
 
 /// Optional upstream globals; each one missing only switches its feature off.
@@ -25,6 +27,7 @@ pub(crate) struct StandardGlobals {
     pub(crate) color: Option<ColorManagement>,
     pub(crate) layer_shell: Option<LayerShell>,
     pub(crate) idle_inhibit: Option<ZwpIdleInhibitManagerV1>,
+    pub(crate) session_lock: Option<SessionLockState>,
 }
 
 impl StandardGlobals {
@@ -37,6 +40,7 @@ impl StandardGlobals {
             color: ColorManagement::bind(globals, qh),
             layer_shell: LayerShell::bind(globals, qh).ok(),
             idle_inhibit: globals.bind(qh, 1..=1, NoEvents).ok(),
+            session_lock: session_lock::bind_manager(globals, qh),
         }
     }
 }

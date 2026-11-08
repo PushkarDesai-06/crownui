@@ -31,6 +31,8 @@ pub struct Capabilities {
     pub surface_animation: bool,
     /// Windows can be layer surfaces (panels, docks, overlays).
     pub layer_shell: bool,
+    /// The session can be locked and windows can be session-lock surfaces.
+    pub session_lock: bool,
     /// A window can keep the system from idling (screen blanking, sleep) while it is visible.
     pub idle_inhibit: bool,
     /// A launcher can tell the compositor where it shows application icons, so windows open

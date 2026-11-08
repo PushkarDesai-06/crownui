@@ -36,6 +36,7 @@ impl Default for HeadlessPlatform {
             visibility_hints: false,
             surface_animation: false,
             layer_shell: true,
+            session_lock: false,
             idle_inhibit: true,
             app_icons: false,
         })

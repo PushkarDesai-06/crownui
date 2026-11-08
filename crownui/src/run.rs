@@ -32,6 +32,26 @@ pub fn run_windows(windows: Vec<(AnyView, AppConfig)>) -> Result<(), RunError> {
     for (root, config) in windows {
         runner = runner.with_window(root, taffy_layout::TaffyEngine::new(), config)?;
     }
+    run_app(&mut runner)?;
+    match runner.take_failure() {
+        Some(failure) => Err(failure),
+        None => Ok(()),
+    }
+}
+
+/// The [`Runner`] [`run`] uses: Impeller rendering and taffy layout.
+#[cfg(all(feature = "wayland", feature = "impeller"))]
+pub type WaylandRunner = Runner<impeller::ImpellerBackend, taffy_layout::TaffyEngine>;
+
+/// Drives `app` on Wayland until it exits, for apps that manage windows themselves: wrap a
+/// [`WaylandRunner`] (usually [`Runner::empty`]) in your own
+/// [`ApplicationHandler`](windowing::ApplicationHandler), forward every callback to it, and open
+/// windows with [`Runner::open_window`]. Same threading rule as [`run`].
+#[cfg(all(feature = "wayland", feature = "impeller"))]
+pub fn run_app<A>(app: &mut A) -> Result<(), RunError>
+where
+    A: windowing::ApplicationHandler<windowing::wayland::WaylandPlatform>,
+{
     let event_loop = windowing::wayland::EventLoop::new()
         .map_err(|error| RunError::Platform(error.to_string()))?;
     if let Some(main_device) = event_loop.main_device() {
@@ -39,10 +59,6 @@ pub fn run_windows(windows: Vec<(AnyView, AppConfig)>) -> Result<(), RunError> {
         unsafe { impeller::select_vulkan_driver(main_device) };
     }
     event_loop
-        .run_app(&mut runner)
-        .map_err(|error| RunError::Platform(error.to_string()))?;
-    match runner.take_failure() {
-        Some(failure) => Err(failure),
-        None => Ok(()),
-    }
+        .run_app(app)
+        .map_err(|error| RunError::Platform(error.to_string()))
 }
