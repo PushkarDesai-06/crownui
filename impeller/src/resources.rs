@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use graphics::{ImageId, TextLayoutId};
+use graphics::{ImageId, ShaderProgram, TextLayoutId};
 use impellers::{Context, FragmentProgram, Paragraph, Texture};
 
 use crate::{
     segment_textures::SegmentTextures,
     util::{
+        fragment_program::load_fragment_program,
         path_shader::load_path_program,
         shape_shader::{ShapeShader, load_shape_program},
     },
@@ -28,6 +29,8 @@ pub(crate) struct DrawResources {
     pub(crate) shape_program: Option<FragmentProgram>,
     pub(crate) path_program: Option<FragmentProgram>,
     pub(crate) segment_textures: SegmentTextures,
+    /// Apps' fragment programs by [`ShaderProgram::id`]; `None` when Impeller rejected one.
+    pub(crate) app_programs: HashMap<u64, Option<FragmentProgram>>,
 }
 
 impl DrawResources {
@@ -49,10 +52,18 @@ impl DrawResources {
             .map(|program| ShapeShader::new(context, program))
     }
 
+    /// Loads an app's program the first time it is drawn.
+    pub(crate) fn load_app_program(&mut self, program: &ShaderProgram) {
+        self.app_programs
+            .entry(program.id)
+            .or_insert_with(|| load_fragment_program(program.bytes, "app shader"));
+    }
+
     pub(crate) fn clear(&mut self) {
         self.paragraphs.clear();
         self.textures.clear();
         self.segment_textures.clear();
+        self.app_programs.clear();
         self.shape_program = None;
         self.path_program = None;
     }

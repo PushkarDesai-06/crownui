@@ -1,7 +1,26 @@
+use std::sync::Arc;
+
 use geometry::{Color, Point, Rect};
 
 use crate::ImageId;
 use smallvec::SmallVec;
+
+/// An app's runtime-stage fragment shader: the bytes Impeller's `impellerc` compiled from a
+/// `.frag` (an `.iplr` file) for the engine version the renderer links. Renderers load each
+/// `id` once, so every distinct program needs its own id.
+#[derive(Debug, Clone, Copy)]
+pub struct ShaderProgram {
+    /// Names the program for the renderer's cache.
+    pub id: u64,
+    /// The compiled runtime stage.
+    pub bytes: &'static [u8],
+}
+
+impl PartialEq for ShaderProgram {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
 
 /// A color position along a gradient, `offset` in `0..=1`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -33,6 +52,18 @@ pub enum Brush {
         image: ImageId,
         /// Where the whole image lands.
         rect: Rect,
+    },
+    /// Pixels shaded by an app's fragment program. The program sees `_fragCoord` in the
+    /// shape's coordinates, samples `samplers` (uploaded images) in declaration order, and reads
+    /// `uniforms` as 32-bit floats packed in declaration order. Renderers without programs, or
+    /// missing a sampler, paint nothing.
+    Shader {
+        /// The compiled program.
+        program: ShaderProgram,
+        /// Images bound to the program's samplers, in order.
+        samplers: SmallVec<[ImageId; 2]>,
+        /// The program's uniforms, packed.
+        uniforms: Arc<[u8]>,
     },
 }
 

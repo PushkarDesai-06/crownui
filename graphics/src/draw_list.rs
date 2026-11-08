@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use std::fmt;
 
 use geometry::{Color, CornerRadii, Length, Point, Rect, Transform, Vector};
@@ -188,21 +189,34 @@ impl DrawList {
 
     /// The images this list draws, directly or as a fill.
     pub fn images(&self) -> impl Iterator<Item = ImageId> + '_ {
-        let filled = |paint: &Paint| match paint.brush {
-            Brush::Image { image, .. } => Some(image),
-            _ => None,
+        let filled = |paint: &Paint| -> SmallVec<[ImageId; 2]> {
+            match &paint.brush {
+                Brush::Image { image, .. } => SmallVec::from_slice(&[*image]),
+                Brush::Shader { samplers, .. } => samplers.clone(),
+                _ => SmallVec::new(),
+            }
         };
-        self.commands
-            .iter()
-            .filter_map(move |command| match command {
-                DrawCommand::Image(image, _) => Some(*image),
-                DrawCommand::FillRect(_, paint)
-                | DrawCommand::FillRoundedRect(_, _, paint)
-                | DrawCommand::StrokeRoundedRect(_, _, _, paint)
-                | DrawCommand::FillPath(_, paint)
-                | DrawCommand::StrokePath(_, _, paint) => filled(paint),
-                _ => None,
-            })
+        self.commands.iter().flat_map(move |command| match command {
+            DrawCommand::Image(image, _) => SmallVec::from_slice(&[*image]),
+            DrawCommand::FillRect(_, paint)
+            | DrawCommand::FillRoundedRect(_, _, paint)
+            | DrawCommand::StrokeRoundedRect(_, _, _, paint)
+            | DrawCommand::FillPath(_, paint)
+            | DrawCommand::StrokePath(_, _, paint) => filled(paint),
+            _ => SmallVec::new(),
+        })
+    }
+
+    /// The paint of each command that has one.
+    pub fn paints(&self) -> impl Iterator<Item = &Paint> + '_ {
+        self.commands.iter().filter_map(|command| match command {
+            DrawCommand::FillRect(_, paint)
+            | DrawCommand::FillRoundedRect(_, _, paint)
+            | DrawCommand::StrokeRoundedRect(_, _, _, paint)
+            | DrawCommand::FillPath(_, paint)
+            | DrawCommand::StrokePath(_, _, paint) => Some(paint),
+            _ => None,
+        })
     }
 }
 
@@ -258,6 +272,15 @@ fn write_paint(formatter: &mut fmt::Formatter<'_>, paint: &Paint) -> fmt::Result
         Brush::Image { image, rect } => {
             write!(formatter, "image({})", image.0)?;
             write_rect(formatter, rect)?;
+        }
+        Brush::Shader {
+            program, samplers, ..
+        } => {
+            write!(formatter, "shader({}", program.id)?;
+            for sampler in samplers {
+                write!(formatter, ",{}", sampler.0)?;
+            }
+            formatter.write_str(")")?;
         }
     }
     match paint.blur {

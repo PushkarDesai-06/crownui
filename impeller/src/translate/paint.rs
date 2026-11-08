@@ -1,5 +1,8 @@
 use graphics::{Brush, Paint, Stroke, StrokeCap, StrokeJoin};
-use impellers::{BlurStyle, ColorSource, DrawStyle, MaskFilter, Matrix, TextureSampling, TileMode};
+use impellers::{
+    BlurStyle, ColorSource, Context, DrawStyle, MaskFilter, Matrix, Texture, TextureSampling,
+    TileMode,
+};
 
 use crate::{
     resources::DrawResources,
@@ -9,7 +12,11 @@ use crate::{
     },
 };
 
-pub(crate) fn fill_paint(paint: &Paint, resources: &DrawResources) -> impellers::Paint {
+pub(crate) fn fill_paint(
+    paint: &Paint,
+    resources: &DrawResources,
+    context: Option<&Context>,
+) -> impellers::Paint {
     let mut converted = impellers::Paint::default();
     match &paint.brush {
         Brush::Solid(color) => {
@@ -54,6 +61,38 @@ pub(crate) fn fill_paint(paint: &Paint, resources: &DrawResources) -> impellers:
                 converted.set_color(impellers::Color::TRANSPARENT);
             }
         },
+        Brush::Shader {
+            program,
+            samplers,
+            uniforms,
+        } => {
+            let program = resources
+                .app_programs
+                .get(&program.id)
+                .and_then(Option::as_ref);
+            let textures: Option<Vec<Texture>> = samplers
+                .iter()
+                .map(|id| {
+                    resources
+                        .textures
+                        .get(id)
+                        .map(|uploaded| uploaded.texture.clone())
+                })
+                .collect();
+            match (context, program, textures) {
+                (Some(context), Some(program), Some(textures)) => {
+                    // SAFETY: the app compiled `program` with this engine's impellerc and packs
+                    // `uniforms` as the program declares them (see `Brush::Shader`).
+                    let source = unsafe {
+                        context.new_color_source_from_fragment_program(program, &textures, uniforms)
+                    };
+                    converted.set_color_source(&source);
+                }
+                _ => {
+                    converted.set_color(impellers::Color::TRANSPARENT);
+                }
+            }
+        }
     }
     if let Some(sigma) = paint.blur.and_then(filter_sigma) {
         converted.set_mask_filter(&MaskFilter::new_blur(BlurStyle::Normal, sigma));
@@ -65,8 +104,9 @@ pub(crate) fn stroke_paint(
     paint: &Paint,
     stroke: Stroke,
     resources: &DrawResources,
+    context: Option<&Context>,
 ) -> impellers::Paint {
-    let mut converted = fill_paint(paint, resources);
+    let mut converted = fill_paint(paint, resources, context);
     converted
         .set_draw_style(DrawStyle::Stroke)
         .set_stroke_width(stroke.width)

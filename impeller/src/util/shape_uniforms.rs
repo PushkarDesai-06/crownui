@@ -62,7 +62,7 @@ impl ShapeUniforms {
                 }
                 (GRADIENT, stops.len())
             }
-            Brush::Image { .. } => return None,
+            Brush::Image { .. } | Brush::Shader { .. } => return None,
         };
         uniforms.set(
             STYLE,

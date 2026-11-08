@@ -35,6 +35,11 @@ pub(crate) fn translate_draw_list(
     corners: CornerShape,
     scale: f32,
 ) -> Option<DisplayList> {
+    for paint in list.paints() {
+        if let Brush::Shader { program, .. } = &paint.brush {
+            resources.load_app_program(program);
+        }
+    }
     let mut recorder = Recorder {
         builder: DisplayListBuilder::new(None),
         saved_scales: Vec::new(),
@@ -95,7 +100,10 @@ impl Recorder<'_> {
                 Outline::new(*rect, *radii, self.corners).clip(builder);
             }
             DrawCommand::FillRect(rect, paint) => {
-                builder.draw_rect(&to_rect(*rect), &fill_paint(paint, self.resources));
+                builder.draw_rect(
+                    &to_rect(*rect),
+                    &fill_paint(paint, self.resources, self.context),
+                );
             }
             DrawCommand::FillRoundedRect(rect, radii, paint) => {
                 self.rounded_rect(*rect, *radii, paint, None);
@@ -170,7 +178,7 @@ impl Recorder<'_> {
         let shape = SdfShape::new(rect, radii, self.corners);
         let stroke_width = stroke.map_or(0.0, |stroke| stroke.width);
         if !shape.draw(&mut self.builder, &paint.brush, stroke_width, shader) {
-            let converted = fill_paint(paint, self.resources);
+            let converted = fill_paint(paint, self.resources, self.context);
             shape.draw_masked(&mut self.builder, &converted, stroke_width, shader);
         }
     }
@@ -211,7 +219,7 @@ impl Recorder<'_> {
             }
             _ => {
                 let mask = shape.paint(WHITE, segments, shader);
-                let converted = fill_paint(paint, self.resources);
+                let converted = fill_paint(paint, self.resources, self.context);
                 shape.draw_masked(&mut self.builder, &converted, mask);
             }
         }
@@ -220,8 +228,8 @@ impl Recorder<'_> {
 
     fn msaa_paint(&self, paint: &Paint, stroke: Option<Stroke>) -> impellers::Paint {
         match stroke {
-            Some(stroke) => stroke_paint(paint, stroke, self.resources),
-            None => fill_paint(paint, self.resources),
+            Some(stroke) => stroke_paint(paint, stroke, self.resources, self.context),
+            None => fill_paint(paint, self.resources, self.context),
         }
     }
 }
