@@ -218,6 +218,9 @@ impl Ui {
             self.viewport = size;
             self.layout_needed = true;
             self.mark_semantics_dirty();
+            let signal = self.cx.viewport;
+            signal.set(&mut self.cx, size);
+            self.cx.apply_pending();
         }
     }
 
