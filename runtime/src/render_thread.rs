@@ -116,8 +116,15 @@ fn render_loop<G, S>(
     G: GraphicsBackend + CreateRenderer<S>,
     S: PlatformSurface,
 {
+    let creating = Instant::now();
     let mut renderer = match G::create_renderer(&surface) {
-        Ok(renderer) => renderer,
+        Ok(renderer) => {
+            tracing::debug!(
+                elapsed_ms = creating.elapsed().as_secs_f64() * 1000.0,
+                "renderer created"
+            );
+            renderer
+        }
         Err(error) => {
             tracing::error!("CUI0402: could not create the renderer: {error}");
             return;
@@ -182,6 +189,13 @@ fn render_loop<G, S>(
         let render_started = Instant::now();
         if let Err(error) = renderer.render(&composition) {
             tracing::error!("CUI0404: frame failed: {error}");
+        }
+        if frame == 1 {
+            tracing::debug!(
+                since_thread_start_ms = creating.elapsed().as_secs_f64() * 1000.0,
+                render_ms = render_started.elapsed().as_secs_f64() * 1000.0,
+                "first frame presented"
+            );
         }
         let _ = reports.try_send(RenderReport {
             frame,
