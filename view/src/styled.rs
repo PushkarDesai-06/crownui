@@ -353,9 +353,9 @@ pub trait Styled: Sized {
         self.modifier(Modifier::Style(StyleProp::ZIndex(index)))
     }
 
-    /// `cursor-*`.
-    fn cursor(self, cursor: CursorIcon) -> Self {
-        self.modifier(Modifier::Style(StyleProp::Cursor(cursor)))
+    /// `cursor-*`; may be bound, to follow what the pointer is over.
+    fn cursor(self, cursor: impl IntoProp<CursorIcon>) -> Self {
+        self.modifier(Modifier::from_prop(cursor.into_prop(), StyleProp::Cursor))
     }
 
     /// CrownOS extra: a compositor-rendered material (frosted glass) behind the node; may be bound
@@ -391,6 +391,12 @@ impl IntoProp<Vector> for Vector {
 
 impl IntoProp<Material> for Material {
     fn into_prop(self) -> crate::prop::Prop<Material> {
+        crate::prop::Prop::Static(self)
+    }
+}
+
+impl IntoProp<CursorIcon> for CursorIcon {
+    fn into_prop(self) -> crate::prop::Prop<CursorIcon> {
         crate::prop::Prop::Static(self)
     }
 }
