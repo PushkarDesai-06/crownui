@@ -80,7 +80,7 @@ impl ElementTree {
             });
         node.value = element.semantics.value.clone();
         node.description = element.semantics.description.clone();
-        node.bounds = element.geometry.window_rect;
+        node.bounds = self.screen_bounds(id);
         node.path = self.path(id);
         node.states = States {
             focused: focused == Some(id),
@@ -90,9 +90,7 @@ impl ElementTree {
             expanded: None,
             selected: false,
             secure: element.semantics.secure,
-            offscreen: viewport
-                .intersection(element.geometry.window_rect)
-                .is_none(),
+            offscreen: viewport.intersection(node.bounds).is_none(),
         };
         node.actions = element
             .listeners

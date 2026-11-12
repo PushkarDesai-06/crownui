@@ -455,7 +455,7 @@ impl Ui {
             let Some(element) = self.cx.tree.get(*id) else {
                 continue;
             };
-            let bounds = element.geometry.window_rect;
+            let bounds = self.cx.tree.screen_bounds(*id);
             let offscreen = viewport.intersection(bounds).is_none();
             if let Some(node) = self
                 .semantics
@@ -653,7 +653,7 @@ impl Ui {
             return Err(ActionError::Disabled(path));
         }
         let secure = element.semantics.secure;
-        let center = element.geometry.window_rect.center();
+        let center = self.cx.tree.screen_bounds(node).center();
         match action {
             UiAction::Click => {
                 self.set_focus_if_focusable(node);
@@ -800,12 +800,18 @@ impl Ui {
     /// Where an input method should place its candidate window, when a text field has focus,
     /// and whether the field is secure.
     pub fn text_input_request(&self) -> Option<(Rect, bool)> {
-        let element = self.cx.tree.get(self.focused?)?;
+        let focused = self.focused?;
+        let element = self.cx.tree.get(focused)?;
         matches!(
             element.role,
             semantics::Role::TextField | semantics::Role::SearchField
         )
-        .then_some((element.geometry.window_rect, element.semantics.secure))
+        .then(|| {
+            (
+                self.cx.tree.screen_bounds(focused),
+                element.semantics.secure,
+            )
+        })
     }
 
     /// Whether a pointer is down (long presses need polling).

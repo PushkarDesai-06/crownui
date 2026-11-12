@@ -1,4 +1,4 @@
-use geometry::{Point, Vector};
+use geometry::{Point, Rect, Transform, Vector};
 use graphics::TextLayoutId;
 use input::{Key, Keybind, KeyboardEvent};
 use rustc_hash::FxHashMap;
@@ -10,6 +10,50 @@ use crate::{
     dirty::DirtyQueues,
     node::{ElementNode, NodeContent, NodeId},
 };
+
+/// How a node's drawing moves away from its layout rect, in window space: scale and rotation
+/// about its transform origin, then its translation, exactly as the render thread composes it.
+/// `None` when the node draws where layout put it.
+pub(crate) fn visual_transform(node: &ElementNode) -> Option<Transform> {
+    let visual = &node.visual;
+    if visual.scale == Vector::new(1.0, 1.0)
+        && visual.rotate == 0.0
+        && visual.translate == Vector::ZERO
+    {
+        return None;
+    }
+    let rect = node.geometry.window_rect;
+    let pivot = Point::new(
+        rect.origin.x + rect.size.width * visual.origin.x,
+        rect.origin.y + rect.size.height * visual.origin.y,
+    );
+    Some(
+        Transform::scale(visual.scale.x, visual.scale.y)
+            .then(Transform::rotate(visual.rotate.to_radians()))
+            .about(pivot)
+            .then(Transform::translate(visual.translate)),
+    )
+}
+
+/// The axis-aligned box covering `rect` once `transform` is applied.
+pub(crate) fn transformed_bounds(transform: Transform, rect: Rect) -> Rect {
+    if rect.size.is_empty() {
+        return rect;
+    }
+    let corners = [
+        Point::new(rect.min_x(), rect.min_y()),
+        Point::new(rect.max_x(), rect.min_y()),
+        Point::new(rect.min_x(), rect.max_y()),
+        Point::new(rect.max_x(), rect.max_y()),
+    ]
+    .map(|corner| transform.apply(corner));
+    let (mut min, mut max) = (corners[0], corners[0]);
+    for corner in &corners[1..] {
+        min = Point::new(min.x.min(corner.x), min.y.min(corner.y));
+        max = Point::new(max.x.max(corner.x), max.y.max(corner.y));
+    }
+    Rect::from_xywh(min.x, min.y, max.x - min.x, max.y - min.y)
+}
 
 /// A node that left the tree since the last frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -363,13 +407,17 @@ impl ElementTree {
         let mut path = Vec::new();
         let hit_layer = self.top_layer_nodes.iter().rev().copied().find(|&layer| {
             !self.hidden_by_ancestor(layer)
-                && self.hit_test_node(
-                    layer,
-                    point,
-                    self.inherited_pointer_events(layer),
-                    &mut path,
-                    visits,
-                )
+                && self
+                    .point_in_parent_space(layer, point)
+                    .is_some_and(|point| {
+                        self.hit_test_node(
+                            layer,
+                            point,
+                            self.inherited_pointer_events(layer),
+                            &mut path,
+                            visits,
+                        )
+                    })
         });
         if hit_layer.is_none() {
             self.hit_test_node(root, point, PointerEvents::Auto, &mut path, visits);
@@ -381,6 +429,80 @@ impl ElementTree {
                 .flat_map(|layer| self.ancestors(layer).skip(1)),
         );
         path
+    }
+
+    /// Maps a window point to where it lands in `id`'s parent before any ancestor transform,
+    /// which is the space `id`'s layout rects live in once its own transform is undone.
+    /// `None` when an ancestor collapses everything (a zero scale), so nothing below it can be
+    /// under the pointer.
+    fn point_in_parent_space(&self, id: NodeId, point: Point) -> Option<Point> {
+        match self.nodes.get(id).and_then(|node| node.parent) {
+            Some(parent) => Some(self.layout_space(parent)?.apply(point)),
+            None => Some(point),
+        }
+    }
+
+    /// The transform from window points to `id`'s own untransformed window space, where its
+    /// layout rect lives: every transform from the root down to `id`, undone.
+    /// `None` when that is not invertible.
+    pub(crate) fn layout_space(&self, id: NodeId) -> Option<Transform> {
+        self.ancestors(id)
+            .filter_map(|node| self.nodes.get(node).and_then(visual_transform))
+            .fold(Transform::IDENTITY, Transform::then)
+            .invert()
+    }
+
+    /// Where `id` is drawn on screen: its layout rect through its own and every ancestor's
+    /// scale, rotation and translation.
+    pub(crate) fn screen_bounds(&self, id: NodeId) -> Rect {
+        let Some(node) = self.nodes.get(id) else {
+            return Rect::ZERO;
+        };
+        let transform = self
+            .ancestors(id)
+            .filter_map(|node| self.nodes.get(node).and_then(visual_transform))
+            .fold(Transform::IDENTITY, Transform::then);
+        if transform.is_identity() {
+            node.geometry.window_rect
+        } else {
+            transformed_bounds(transform, node.geometry.window_rect)
+        }
+    }
+
+    /// Recomputes the hit-test bounds of `id`'s ancestors, after `id`'s transform changed.
+    pub(crate) fn refresh_ancestor_subtree_rects(&mut self, id: NodeId) {
+        let mut current = self.nodes.get(id).and_then(|node| node.parent);
+        while let Some(id) = current {
+            let Some(bounds) = self.subtree_bounds(id) else {
+                break;
+            };
+            let Some(node) = self.nodes.get_mut(id) else {
+                break;
+            };
+            node.subtree_rect = bounds;
+            current = node.parent;
+        }
+    }
+
+    /// The box hit-testing prunes `id`'s subtree with: its own rect plus its children's,
+    /// each through the child's transform, in `id`'s untransformed space.
+    pub(crate) fn subtree_bounds(&self, id: NodeId) -> Option<Rect> {
+        let element = self.nodes.get(id)?;
+        let mut bounds = element.geometry.window_rect;
+        if !element.visual.clip {
+            for child in element
+                .children
+                .iter()
+                .filter_map(|child| self.nodes.get(*child))
+            {
+                let extent = match visual_transform(child) {
+                    Some(transform) => transformed_bounds(transform, child.subtree_rect),
+                    None => child.subtree_rect,
+                };
+                bounds = bounds.union(extent);
+            }
+        }
+        Some(bounds)
     }
 
     fn hidden_by_ancestor(&self, id: NodeId) -> bool {
@@ -410,6 +532,11 @@ impl ElementTree {
             return false;
         };
         *visits += 1;
+        let point = match visual_transform(node).map(Transform::invert) {
+            Some(Some(inverse)) => inverse.apply(point),
+            Some(None) => return false,
+            None => point,
+        };
         if node.visual.hidden || !node.subtree_rect.contains(point) {
             return false;
         }

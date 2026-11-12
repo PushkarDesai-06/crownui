@@ -786,6 +786,12 @@ impl Cx {
         }
         let visual_changed = element.visual != visual;
         let top_layer_changed = element.visual.top_layer != visual.top_layer;
+        let transform_changed = (
+            element.visual.scale,
+            element.visual.rotate,
+            element.visual.translate,
+            element.visual.origin,
+        ) != (visual.scale, visual.rotate, visual.translate, visual.origin);
         if visual_changed {
             element.visual = visual;
             element.dirty.visual = true;
@@ -797,6 +803,11 @@ impl Cx {
         }
         if top_layer_changed {
             self.tree.track_top_layer(node, visual.top_layer);
+        }
+        if transform_changed {
+            self.tree.refresh_ancestor_subtree_rects(node);
+            // Semantic bounds are where nodes are drawn, so this subtree's moved.
+            self.semantics_changed = true;
         }
         if visual_changed {
             self.tree.mark_render(node);

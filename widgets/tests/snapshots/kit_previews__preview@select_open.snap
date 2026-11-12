@@ -18,7 +18,7 @@ window @0,0 480x320
         text "Remix" @37,164.6 210x16.8
       list_item "Astro" @29,188 242x30
         text "Astro" @37,194.6 210x16.8
-      image @24,63 16x16
+      image @247,135 16x16
 
 ## layout
 stack @0,0 480x320 p-24 gap-12/12 w-100% h-100%

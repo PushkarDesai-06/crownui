@@ -198,7 +198,15 @@ impl Ui {
             .get(node)
             .map(|element| element.geometry.window_rect.origin)
             .unwrap_or(Point::ZERO);
-        let local = |position: Point| Point::new(position.x - origin.x, position.y - origin.y);
+        let layout_space = self
+            .cx
+            .tree
+            .layout_space(node)
+            .unwrap_or(geometry::Transform::IDENTITY);
+        let local = |position: Point| {
+            let position = layout_space.apply(position);
+            Point::new(position.x - origin.x, position.y - origin.y)
+        };
         for output in outputs {
             let mut dispatchable = match output {
                 GestureOutput::Click { position, count } => {

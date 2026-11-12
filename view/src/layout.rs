@@ -314,17 +314,9 @@ impl ElementTree {
     /// in pre-order, so walking it backwards sees every child before its parent.
     fn refresh_subtree_rects(&mut self, visited: &[NodeId]) {
         for id in visited.iter().rev() {
-            let Some(element) = self.get(*id) else {
+            let Some(bounds) = self.subtree_bounds(*id) else {
                 continue;
             };
-            let mut bounds = element.geometry.window_rect;
-            if !element.visual.clip {
-                for child in &element.children {
-                    if let Some(child) = self.get(*child) {
-                        bounds = bounds.union(child.subtree_rect);
-                    }
-                }
-            }
             if let Some(element) = self.get_mut(*id) {
                 element.subtree_rect = bounds;
             }
